@@ -1,7 +1,100 @@
 ﻿@page "/chat"
+<!-- Add used libraries-->
+@using Microsoft.AspNetCore.SignalR.Client;
+
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
 
 <h3>Chat</h3>
 
-@code {
+<div class="container">
+    <div class="row">
+        <div class="col-2">User</div>
+        <div class="col-4">
+            <input type="text" 
+                   id="TxtUserName" 
+                   class="form-control"
+                   @bind="userInput"/>
+        </div>
+    </div>
 
+    <div class="row">&nbsp;</div>
+
+    <div class="row">
+        <div class="col-2">Message</div>
+        <div class="col-4">
+            <input type="text"
+                   id="TxtMessage" 
+                   class="form-control" 
+                   @bind="messageInput"/>
+        </div>
+    </div>
+
+    <div class="row">&nbsp;</div>
+
+    <div class="row">
+        <div class="col-6">
+            <button id="BtnSend" 
+                    class="btn btn-primary"
+                    @onclick="SendMessage"
+                    disabled="@(!IsConnected)">Send</button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <hr />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <ul id="MessageList">
+            @foreach (var message in messages)
+            {
+                <li>@message</li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    private HubConnection hubConnection;
+    private List<string> messages = new List<string>();
+    private string userInput;
+    private string messageInput;
+
+    // Public properties
+    public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+
+    // On screen open
+    protected override async Task OnInitializedAsync()
+    {
+        // Use connection builder to setup connection with chathub signalr component
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+        {
+            var encodedMsg = $"{user}: {message}";
+            messages.Add(encodedMsg);
+            StateHasChanged();
+        });
+
+        // Start connection
+        await hubConnection.StartAsync();
+    }
+
+    // Send the message using SignalR hub
+    Task SendMessage() =>
+    hubConnection.SendAsync("SendMessageAsync", userInput, messageInput);
+
+    // Implement IAsyncDisposable interface
+    public async ValueTask DisposeAsync()
+    {
+        await hubConnection.DisposeAsync();
+    }
 }
