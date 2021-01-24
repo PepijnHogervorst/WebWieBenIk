@@ -9,53 +9,79 @@
 
 <div class="container">
     <div class="row">
-        <div class="col-2">User</div>
+        <!-- List of people that are in the current game-->
         <div class="col-4">
-            <input type="text" 
-                   id="TxtUserName" 
-                   class="form-control"
-                   @bind="userInput"/>
+
         </div>
-    </div>
 
-    <div class="row">&nbsp;</div>
-
-    <div class="row">
-        <div class="col-2">Message</div>
-        <div class="col-4">
-            <input type="text"
-                   id="TxtMessage" 
-                   class="form-control" 
-                   @bind="messageInput"/>
-        </div>
-    </div>
-
-    <div class="row">&nbsp;</div>
-
-    <div class="row">
+        <!-- Main screen -->
         <div class="col-6">
-            <button id="BtnSend" 
-                    class="btn btn-primary"
-                    @onclick="SendMessage"
-                    disabled="@(!IsConnected)">Send</button>
+            <div class="card" >
+                <h3>Welkom bij Wie ben ik!</h3>
+
+                <button type="button" class="btn btn-primary">Join spel</button>
+                <button type="button" class="btn btn-outline-secondary">Nieuw spel</button>
+
+            </div>
         </div>
-    </div>
-</div>
 
-<div class="row">
-    <div class="col-12">
-        <hr />
-    </div>
-</div>
+        <!-- Chat & Log -->
+        <div class="col-6">
+            <div class="container card" id="ContChat">
+                <div class="row">
+                    <div class="col-2">User</div>
+                    <div class="col-4">
+                        <input type="text"
+                               id="TxtUserName"
+                               class="form-control"
+                               @bind="userInput" />
+                    </div>
+                </div>
 
-<div class="row">
-    <div class="col-12">
-        <ul id="MessageList">
-            @foreach (var message in messages)
-            {
-                <li>@message</li>
-            }
-        </ul>
+                <div class="row">&nbsp;</div>
+
+                <div class="row">
+                    <div class="col-2">Message</div>
+                    <div class="col-4">
+                        <input type="text"
+                               id="TxtMessage"
+                               class="form-control"
+                               @bind="messageInput"
+                               @onkeyup="@Event_TxtMessage_KeyPress" />
+                    </div>
+                </div>
+
+                <div class="row">&nbsp;</div>
+
+                <div class="row">
+                    <div class="col-6">
+                        <button id="BtnSend"
+                                class="btn btn-primary"
+                                @onclick="SendMessage"
+                                disabled="@(!IsConnected && !IsMessageReady)">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <hr />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <ul id="MessageList">
+                        @foreach (var message in messages)
+                        {
+                            <li>@message</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -68,10 +94,16 @@
     // Public properties
     public bool IsConnected =>
         hubConnection.State == HubConnectionState.Connected;
+    public bool IsMessageReady =>
+        !String.IsNullOrEmpty(userInput) && !String.IsNullOrEmpty(messageInput);
 
     // On screen open
     protected override async Task OnInitializedAsync()
     {
+        // Generate user name
+        Random rng = new Random();
+        userInput = "User" + rng.Next().ToString("X8");
+
         // Use connection builder to setup connection with chathub signalr component
         hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
@@ -89,10 +121,27 @@
     }
 
     // Send the message using SignalR hub
-    Task SendMessage() =>
-    hubConnection.SendAsync("SendMessageAsync", userInput, messageInput);
+    private async Task SendMessage()
+    {
+        if (String.IsNullOrEmpty(userInput) || String.IsNullOrEmpty(messageInput)) return;
 
-    // Implement IAsyncDisposable interface
+        await hubConnection.SendAsync("SendMessageAsync", userInput, messageInput);
+        messageInput = String.Empty;
+    }
+
+    private async Task Event_TxtMessage_KeyPress(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            await SendMessage();
+        }
+    }
+
+    #region MyRegion
+
+    #endregion
+
+    // Implement IAsyncDisposable interface to dispose hubconnection
     public async ValueTask DisposeAsync()
     {
         await hubConnection.DisposeAsync();
